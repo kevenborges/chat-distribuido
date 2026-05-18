@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>FURG | Sistema de Chat Distribuído</title>
     <style>
-        /* MANTIVE SEU CSS INTACTO - É MUITO BOM! */
         :root { --bg-color: #121212; --panel-bg: #1e1e1e; --text-main: #e0e0e0; --text-muted: #a0a0a0; --accent: #bb86fc; --accent-hover: #985eff; --success: #03dac6; --error: #cf6679; }
         body { font-family: 'Consolas', 'Courier New', monospace; background-color: var(--bg-color); color: var(--text-main); margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; }
         .app-container { background-color: var(--panel-bg); width: 90%; max-width: 800px; height: 80vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #333; }
@@ -33,7 +32,6 @@
     </style>
 </head>
 <body>
-
 <div class="app-container">
     <header>
         <h2>>_ CHAT_DISTRIBUIDO</h2>
@@ -42,13 +40,11 @@
             <span id="status-text">OFFLINE</span>
         </div>
     </header>
-    
     <div id="login-section">
         <p>IDENTIFICAÇÃO DO NÓ CLIENTE</p>
         <input type="text" id="apelido" placeholder="Insira seu apelido..." autocomplete="off">
         <button onclick="conectar()">INICIAR SESSÃO</button>
     </div>
-    
     <div id="chat-section">
         <div id="chat-box"></div>
         <div class="input-area">
@@ -57,44 +53,40 @@
         </div>
     </div>
 </div>
-
 <audio id="som-notificacao" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" preload="auto"></audio>
-
 <script>
     let intervalBusca;
-
     async function conectar() {
         const apelido = document.getElementById('apelido').value;
         if(!apelido) return alert("Erro: Apelido nulo!");
-
-        const resposta = await fetch('/conectar', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({apelido: apelido})
-        });
-        const dados = await resposta.json();
         
-        if(dados.status === 'sucesso') {
-            document.getElementById('login-section').style.display = 'none';
-            document.getElementById('chat-section').style.display = 'flex';
+        try {
+            const resposta = await fetch('/conectar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({apelido: apelido})
+            });
+            const dados = await resposta.json();
             
-            const dot = document.getElementById('status-indicator');
-            const text = document.getElementById('status-text');
-            dot.classList.add('online');
-            text.innerText = "ONLINE";
-            
-            intervalBusca = setInterval(buscarMensagens, 1000); 
-        } else {
-            alert("Falha no handshake com o servidor: " + dados.mensagem);
+            if(dados.status === 'sucesso') {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('chat-section').style.display = 'flex';
+                document.getElementById('status-indicator').classList.add('online');
+                document.getElementById('status-text').innerText = "ONLINE";
+                intervalBusca = setInterval(buscarMensagens, 1000); 
+            } else { 
+                alert("Falha: " + dados.mensagem); 
+            }
+        } catch (err) {
+            alert("Erro de conexão. Verifique se o servidor está online.");
         }
     }
 
-   async function enviar() {
+    async function enviar() {
         const input = document.getElementById('mensagem');
         const texto = input.value;
         if(!texto) return;
-
-        // Mandamos tudo para o servidor (inclusive o comando /clear)
+        
         await fetch('/enviar', { 
             method: 'POST', 
             headers: {'Content-Type': 'application/json'}, 
@@ -105,45 +97,23 @@
         buscarMensagens();
     }
 
-        // Comando /clear para limpar o front-end
-        if (texto.trim() === '/clear') {
-            document.getElementById('chat-box').innerHTML = '';
-            input.value = '';
-            return;
-        }
-
-        await fetch('/enviar', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({texto: texto})
-        });
-        
-        input.value = '';
-        buscarMensagens();
-    }
-
     async function buscarMensagens() {
         const resposta = await fetch('/mensagens');
         const dados = await resposta.json();
         const box = document.getElementById('chat-box');
         
         if (box.childElementCount !== dados.mensagens.length) {
-            // Toca som se a nova mensagem não for do próprio sistema
             if(dados.mensagens.length > 0) {
                 let ultima_msg = dados.mensagens[dados.mensagens.length - 1];
                 if (!ultima_msg.includes("[SISTEMA]") && box.childElementCount > 0) {
                      document.getElementById('som-notificacao').play().catch(e => {});
                 }
             }
-
+            
             box.innerHTML = ''; 
             dados.mensagens.forEach(msg => {
                 const div = document.createElement('div');
-                if (msg.includes("[SISTEMA]")) {
-                    div.className = 'msg system';
-                } else {
-                    div.className = 'msg';
-                }
+                div.className = msg.includes("[SISTEMA]") ? 'msg system' : 'msg';
                 div.innerText = msg;
                 box.appendChild(div);
             });
@@ -151,10 +121,9 @@
         }
     }
 
-    document.getElementById("mensagem").addEventListener("keypress", function(event) {
-        if (event.key === "Enter") enviar();
+    document.getElementById("mensagem").addEventListener("keypress", function(event) { 
+        if (event.key === "Enter") enviar(); 
     });
 </script>
-
 </body>
 </html>
