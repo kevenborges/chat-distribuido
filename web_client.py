@@ -3,7 +3,7 @@ import threading
 import time
 import uuid
 import os
-from datetime import datetime, timedelta # <-- Adicionado timedelta aqui
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
@@ -12,6 +12,7 @@ SERVIDORES = [('127.0.0.1', 5000), ('127.0.0.1', 5005)]
 usuarios_web = {}
 
 def conectar_servidor_disponivel(user_id):
+    """Tenta conectar aos servidores da lista."""
     for host, port in SERVIDORES:
         try:
             novo_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -24,6 +25,7 @@ def conectar_servidor_disponivel(user_id):
     return False
 
 def receber_mensagens(user_id):
+    """Fica escutando mensagens. Inclui tolerância a falhas instantânea."""
     user = usuarios_web.get(user_id)
     while user and user_id in usuarios_web:
         if user['conectado']:
@@ -36,10 +38,14 @@ def receber_mensagens(user_id):
             except:
                 user['conectado'] = False
                 user['mensagens'].append("[SISTEMA]: Conexão perdida. Tentando reconectar no servidor de backup...")
+                
+                # --- CORREÇÃO AQUI: Tenta conectar imediatamente ---
                 while not user['conectado'] and user_id in usuarios_web:
-                    time.sleep(3)
                     if conectar_servidor_disponivel(user_id):
                         user['mensagens'].append("[SISTEMA]: Reconectado ao backup com sucesso!")
+                        break # Sai do loop e volta a funcionar
+                    time.sleep(2) # Só dorme 2 segundos SE a tentativa falhar
+                # ---------------------------------------------------
         else:
             time.sleep(1)
 
@@ -65,7 +71,6 @@ def conectar():
         thread.daemon = True
         thread.start()
         
-        # --- FUSO HORÁRIO (UTC - 3 Horas) ---
         hora = (datetime.utcnow() - timedelta(hours=3)).strftime('%H:%M')
         msg_entrada = f"[{hora}] [SISTEMA]: {apelido} entrou no chat."
         usuarios_web[user_id]['socket'].send(msg_entrada.encode('utf-8'))
@@ -84,8 +89,6 @@ def enviar():
             return jsonify({"status": "sucesso"})
         
         apelido = usuarios_web[user_id]['apelido']
-        
-        # --- FUSO HORÁRIO (UTC - 3 Horas) ---
         hora = (datetime.utcnow() - timedelta(hours=3)).strftime('%H:%M')
         
         mensagem_formatada = f"[{hora}] [{apelido}]: {texto}"
