@@ -1,9 +1,8 @@
 import socket
 import threading
 
-HOST = '0.0.0.0'
+HOST = '127.0.0.1' # <-- Impede que o Health Check do Render entre direto no Socket
 PORT = 5005
-
 clientes = []
 historico_mensagens = []
 
@@ -17,7 +16,6 @@ def transmitir_mensagem(mensagem, cliente_remetente=None):
 
 def gerenciar_cliente(cliente_socket, endereco):
     print(f"[BACKUP] {endereco} conectado.")
-    
     for msg in historico_mensagens:
         try:
             cliente_socket.send(msg)
@@ -29,6 +27,13 @@ def gerenciar_cliente(cliente_socket, endereco):
             mensagem = cliente_socket.recv(1024)
             if not mensagem:
                 break
+            
+            # --- FILTRO ANTI-LIXO (Ignora os Health Checks) ---
+            texto = mensagem.decode('utf-8', errors='ignore')
+            if "HTTP" in texto or "User-Agent" in texto or not texto.startswith('['):
+                continue
+            # --------------------------------------------------
+
             historico_mensagens.append(mensagem)
             if len(historico_mensagens) > 20:
                 historico_mensagens.pop(0)
@@ -48,7 +53,6 @@ def iniciar_servidor():
     servidor.bind((HOST, PORT))
     servidor.listen()
     print(f"[RODANDO] Servidor de BACKUP em {HOST}:{PORT}")
-    
     while True:
         cliente_socket, endereco = servidor.accept()
         clientes.append(cliente_socket)
