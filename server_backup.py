@@ -3,8 +3,7 @@ import threading
 
 HOST = '127.0.0.1' 
 PORT = 5005
-clientes = [] # <--- AQUI ESTÁ A CORREÇÃO! Faltava criar a lista vazia.
-
+clientes = []
 def transmitir_mensagem(mensagem, cliente_remetente=None):
     for cliente in clientes:
         if cliente != cliente_remetente:
