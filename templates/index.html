@@ -17,13 +17,27 @@
         #login-section input { background: #2d2d2d; border: 1px solid #444; color: white; padding: 12px; font-size: 1rem; border-radius: 4px; margin-bottom: 15px; width: 100%; max-width: 300px; text-align: center; outline: none; }
         #login-section input:focus { border-color: var(--accent); }
         #chat-section { display: none; flex-direction: column; flex: 1; height: 100%; }
-        #chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        #chat-box { flex: 1; padding: 20px; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: var(--panel-bg); }
         ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
-        .msg { background-color: #2d2d2d; padding: 10px 15px; border-radius: 6px; border-left: 4px solid var(--accent); max-width: 85%; word-wrap: break-word; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        .msg.system { background-color: transparent; border-left: none; color: var(--text-muted); font-style: italic; font-size: 0.9em; text-align: center; align-self: center; }
+        
+        /* NOVO DESIGN ESTILO WHATSAPP */
+        .msg-row { display: flex; width: 100%; margin-bottom: 5px; }
+        .msg-row.me { justify-content: flex-end; }
+        .msg-row.other { justify-content: flex-start; }
+        .msg-row.system { justify-content: center; }
+        
+        .msg { padding: 8px 14px; max-width: 75%; word-wrap: break-word; font-family: 'Segoe UI', Tahoma, sans-serif; position: relative; }
+        .msg.me { background-color: #3b2a5c; border-radius: 12px 12px 0px 12px; border-bottom: 2px solid var(--accent-hover); color: white; }
+        .msg.other { background-color: #2d2d2d; border-radius: 12px 12px 12px 0px; border-left: 4px solid; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .msg.system { background-color: transparent; color: var(--text-muted); font-style: italic; font-size: 0.85em; }
+        
+        .msg-user { font-size: 0.8em; font-weight: bold; margin-bottom: 4px; }
+        .msg-text { line-height: 1.3; }
+        .msg-time { font-size: 0.7em; opacity: 0.6; text-align: right; margin-top: 4px; }
+        
         .input-area { padding: 15px 20px; background-color: #252526; border-top: 1px solid #333; display: flex; gap: 10px; }
         .input-area input { flex: 1; background: #3c3c3c; border: 1px solid #555; color: white; padding: 12px; border-radius: 4px; outline: none; font-family: 'Segoe UI', sans-serif; }
         .input-area input:focus { border-color: var(--accent); }
@@ -56,6 +70,20 @@
 <audio id="som-notificacao" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" preload="auto"></audio>
 <script>
     let intervalBusca;
+
+    // Gerador de cores dinâmicas para outros usuários
+    function stringToColor(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        let color = '#';
+        for (let i = 0; i < 3; i++) {
+            let value = (hash >> (i * 8)) & 0xFF;
+            value = Math.max(value, 100); // Impede que a cor fique preta ou muito escura
+            color += ('00' + value.toString(16)).substr(-2);
+        }
+        return color;
+    }
+
     async function conectar() {
         const apelido = document.getElementById('apelido').value;
         if(!apelido) return alert("Erro: Apelido nulo!");
@@ -101,21 +129,55 @@
         const resposta = await fetch('/mensagens');
         const dados = await resposta.json();
         const box = document.getElementById('chat-box');
+        const meuApelido = document.getElementById('apelido').value;
         
         if (box.childElementCount !== dados.mensagens.length) {
             if(dados.mensagens.length > 0) {
                 let ultima_msg = dados.mensagens[dados.mensagens.length - 1];
-                if (!ultima_msg.includes("[SISTEMA]") && box.childElementCount > 0) {
+                if (!ultima_msg.includes("[SISTEMA]") && !ultima_msg.includes(`[${meuApelido}]:`) && box.childElementCount > 0) {
                      document.getElementById('som-notificacao').play().catch(e => {});
                 }
             }
             
             box.innerHTML = ''; 
             dados.mensagens.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = msg.includes("[SISTEMA]") ? 'msg system' : 'msg';
-                div.innerText = msg;
-                box.appendChild(div);
+                const rowDiv = document.createElement('div');
+                const contentDiv = document.createElement('div');
+                
+                if (msg.includes("[SISTEMA]")) {
+                    rowDiv.className = 'msg-row system';
+                    contentDiv.className = 'msg system';
+                    contentDiv.innerText = msg;
+                } else {
+                    // Extrai os dados: [15:30] [Keven]: Olá mundo
+                    const match = msg.match(/^\[(.*?)\] \[(.*?)\]: (.*)$/);
+                    if (match) {
+                        const hora = match[1];
+                        const remetente = match[2];
+                        const texto = match[3];
+                        const isMe = (remetente === meuApelido);
+                        
+                        rowDiv.className = isMe ? 'msg-row me' : 'msg-row other';
+                        contentDiv.className = isMe ? 'msg me' : 'msg other';
+                        
+                        const corUsuario = stringToColor(remetente);
+                        if (!isMe) contentDiv.style.borderLeftColor = corUsuario;
+                        
+                        contentDiv.innerHTML = `
+                            <div class="msg-user" style="color: ${isMe ? '#bb86fc' : corUsuario}">${remetente}</div>
+                            <div class="msg-text">${texto}</div>
+                            <div class="msg-time">${hora}</div>
+                        `;
+                    } else {
+                        // Mensagem fora do padrão
+                        rowDiv.className = 'msg-row other';
+                        contentDiv.className = 'msg other';
+                        contentDiv.innerText = msg;
+                    }
+                }
+                
+                rowDiv.appendChild(contentDiv);
+                box.appendChild(rowDiv);
             });
             box.scrollTop = box.scrollHeight;
         }
