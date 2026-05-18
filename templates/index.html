@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>FURG | Sistema de Chat Distribuído</title>
+    <style>
+        /* MANTIVE SEU CSS INTACTO - É MUITO BOM! */
+        :root { --bg-color: #121212; --panel-bg: #1e1e1e; --text-main: #e0e0e0; --text-muted: #a0a0a0; --accent: #bb86fc; --accent-hover: #985eff; --success: #03dac6; --error: #cf6679; }
+        body { font-family: 'Consolas', 'Courier New', monospace; background-color: var(--bg-color); color: var(--text-main); margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .app-container { background-color: var(--panel-bg); width: 90%; max-width: 800px; height: 80vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #333; }
+        header { background-color: #252526; padding: 15px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        header h2 { margin: 0; font-size: 1.2rem; color: var(--accent); }
+        .status { font-size: 0.9rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--error); }
+        .status-dot.online { background-color: var(--success); box-shadow: 0 0 8px var(--success); }
+        #login-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        #login-section p { font-weight: bold; letter-spacing: 1px; }
+        #login-section input { background: #2d2d2d; border: 1px solid #444; color: white; padding: 12px; font-size: 1rem; border-radius: 4px; margin-bottom: 15px; width: 100%; max-width: 300px; text-align: center; outline: none; }
+        #login-section input:focus { border-color: var(--accent); }
+        #chat-section { display: none; flex-direction: column; flex: 1; height: 100%; }
+        #chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--panel-bg); }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .msg { background-color: #2d2d2d; padding: 10px 15px; border-radius: 6px; border-left: 4px solid var(--accent); max-width: 85%; word-wrap: break-word; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        .msg.system { background-color: transparent; border-left: none; color: var(--text-muted); font-style: italic; font-size: 0.9em; text-align: center; align-self: center; }
+        .input-area { padding: 15px 20px; background-color: #252526; border-top: 1px solid #333; display: flex; gap: 10px; }
+        .input-area input { flex: 1; background: #3c3c3c; border: 1px solid #555; color: white; padding: 12px; border-radius: 4px; outline: none; font-family: 'Segoe UI', sans-serif; }
+        .input-area input:focus { border-color: var(--accent); }
+        button { background-color: var(--accent); color: #000; font-weight: bold; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-family: 'Consolas', monospace; }
+        button:hover { background-color: var(--accent-hover); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <h2>>_ CHAT_DISTRIBUIDO</h2>
+        <div class="status">
+            <span class="status-dot" id="status-indicator"></span>
+            <span id="status-text">OFFLINE</span>
+        </div>
+    </header>
+    
+    <div id="login-section">
+        <p>IDENTIFICAÇÃO DO NÓ CLIENTE</p>
+        <input type="text" id="apelido" placeholder="Insira seu apelido..." autocomplete="off">
+        <button onclick="conectar()">INICIAR SESSÃO</button>
+    </div>
+    
+    <div id="chat-section">
+        <div id="chat-box"></div>
+        <div class="input-area">
+            <input type="text" id="mensagem" placeholder="Digite /clear para limpar a tela..." autocomplete="off">
+            <button onclick="enviar()">ENVIAR</button>
+        </div>
+    </div>
+</div>
+
+<audio id="som-notificacao" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3" preload="auto"></audio>
+
+<script>
+    let intervalBusca;
+
+    async function conectar() {
+        const apelido = document.getElementById('apelido').value;
+        if(!apelido) return alert("Erro: Apelido nulo!");
+
+        const resposta = await fetch('/conectar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({apelido: apelido})
+        });
+        const dados = await resposta.json();
+        
+        if(dados.status === 'sucesso') {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('chat-section').style.display = 'flex';
+            
+            const dot = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+            dot.classList.add('online');
+            text.innerText = "ONLINE";
+            
+            intervalBusca = setInterval(buscarMensagens, 1000); 
+        } else {
+            alert("Falha no handshake com o servidor: " + dados.mensagem);
+        }
+    }
+
+    async function enviar() {
+        const input = document.getElementById('mensagem');
+        const texto = input.value;
+        if(!texto) return;
+
+        // Comando /clear para limpar o front-end
+        if (texto.trim() === '/clear') {
+            document.getElementById('chat-box').innerHTML = '';
+            input.value = '';
+            return;
+        }
+
+        await fetch('/enviar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({texto: texto})
+        });
+        
+        input.value = '';
+        buscarMensagens();
+    }
+
+    async function buscarMensagens() {
+        const resposta = await fetch('/mensagens');
+        const dados = await resposta.json();
+        const box = document.getElementById('chat-box');
+        
+        if (box.childElementCount !== dados.mensagens.length) {
+            // Toca som se a nova mensagem não for do próprio sistema
+            if(dados.mensagens.length > 0) {
+                let ultima_msg = dados.mensagens[dados.mensagens.length - 1];
+                if (!ultima_msg.includes("[SISTEMA]") && box.childElementCount > 0) {
+                     document.getElementById('som-notificacao').play().catch(e => {});
+                }
+            }
+
+            box.innerHTML = ''; 
+            dados.mensagens.forEach(msg => {
+                const div = document.createElement('div');
+                if (msg.includes("[SISTEMA]")) {
+                    div.className = 'msg system';
+                } else {
+                    div.className = 'msg';
+                }
+                div.innerText = msg;
+                box.appendChild(div);
+            });
+            box.scrollTop = box.scrollHeight;
+        }
+    }
+
+    document.getElementById("mensagem").addEventListener("keypress", function(event) {
+        if (event.key === "Enter") enviar();
+    });
+</script>
+
+</body>
+</html>
