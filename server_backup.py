@@ -3,6 +3,7 @@ import threading
 
 HOST = '127.0.0.1' 
 PORT = 5005
+clientes = [] # <--- AQUI ESTÁ A CORREÇÃO! Faltava criar a lista vazia.
 
 def transmitir_mensagem(mensagem, cliente_remetente=None):
     for cliente in clientes:
@@ -13,7 +14,7 @@ def transmitir_mensagem(mensagem, cliente_remetente=None):
                 remover_cliente(cliente)
 
 def gerenciar_cliente(cliente_socket, endereco):
-    print(f"[SERVIDOR] {endereco} conectado.")
+    print(f"[SERVIDOR BACKUP] {endereco} conectado.")
     while True:
         try:
             mensagem = cliente_socket.recv(1024)
@@ -39,7 +40,7 @@ def iniciar_servidor():
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     servidor.bind((HOST, PORT))
     servidor.listen()
-    print(f"[RODANDO] Servidor na porta {PORT}")
+    print(f"[RODANDO] Servidor BACKUP na porta {PORT}")
     while True:
         cliente_socket, endereco = servidor.accept()
         clientes.append(cliente_socket)
