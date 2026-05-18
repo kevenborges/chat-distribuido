@@ -90,9 +90,15 @@ def enviar():
     user_id = session.get('user_id')
     if user_id in usuarios_web and usuarios_web[user_id]['conectado']:
         texto = request.json.get('texto')
-        apelido = usuarios_web[user_id]['apelido']
-        hora = datetime.now().strftime('%H:%M') # TIMESTAMP AQUI
         
+        # --- FILTRO DO COMANDO /CLEAR ---
+        if texto.strip() == '/clear':
+            usuarios_web[user_id]['mensagens'].clear() # Limpa a lista na memória do servidor
+            return jsonify({"status": "sucesso"})
+        # --------------------------------
+        
+        apelido = usuarios_web[user_id]['apelido']
+        hora = datetime.now().strftime('%H:%M')
         mensagem_formatada = f"[{hora}] [{apelido}]: {texto}"
         try:
             usuarios_web[user_id]['socket'].send(mensagem_formatada.encode('utf-8'))
