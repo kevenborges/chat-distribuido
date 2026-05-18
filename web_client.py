@@ -3,7 +3,7 @@ import threading
 import time
 import uuid
 import os
-from datetime import datetime
+from datetime import datetime, timedelta # <-- Adicionado timedelta aqui
 from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
@@ -64,7 +64,9 @@ def conectar():
         thread = threading.Thread(target=receber_mensagens, args=(user_id,))
         thread.daemon = True
         thread.start()
-        hora = datetime.now().strftime('%H:%M')
+        
+        # --- FUSO HORÁRIO (UTC - 3 Horas) ---
+        hora = (datetime.utcnow() - timedelta(hours=3)).strftime('%H:%M')
         msg_entrada = f"[{hora}] [SISTEMA]: {apelido} entrou no chat."
         usuarios_web[user_id]['socket'].send(msg_entrada.encode('utf-8'))
         return jsonify({"status": "sucesso"})
@@ -77,14 +79,15 @@ def enviar():
     if user_id in usuarios_web and usuarios_web[user_id]['conectado']:
         texto = request.json.get('texto')
         
-        # --- FILTRO DO COMANDO /CLEAR ---
         if texto.strip() == '/clear':
             usuarios_web[user_id]['mensagens'].clear() 
             return jsonify({"status": "sucesso"})
-        # --------------------------------
         
         apelido = usuarios_web[user_id]['apelido']
-        hora = datetime.now().strftime('%H:%M')
+        
+        # --- FUSO HORÁRIO (UTC - 3 Horas) ---
+        hora = (datetime.utcnow() - timedelta(hours=3)).strftime('%H:%M')
+        
         mensagem_formatada = f"[{hora}] [{apelido}]: {texto}"
         try:
             usuarios_web[user_id]['socket'].send(mensagem_formatada.encode('utf-8'))
