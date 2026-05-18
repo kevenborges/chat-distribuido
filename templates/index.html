@@ -71,24 +71,28 @@
 <script>
     let intervalBusca;
 
-    // Gerador de cores dinâmicas para outros usuários
+    // Função que gera uma cor Hexadecimal baseada nas letras do nome do usuário
     function stringToColor(str) {
         let hash = 0;
+        // Cria um número inteiro gigante a partir das letras do nome
         for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
         let color = '#';
+        // Converte o número para formato de cor RGB (#FFFFFF)
         for (let i = 0; i < 3; i++) {
             let value = (hash >> (i * 8)) & 0xFF;
-            value = Math.max(value, 100); // Impede que a cor fique preta ou muito escura
+            value = Math.max(value, 100); // Força um brilho mínimo para o texto não ficar preto invisível
             color += ('00' + value.toString(16)).substr(-2);
         }
         return color;
     }
 
     async function conectar() {
+        // Pega o valor do input e verifica se está vazio
         const apelido = document.getElementById('apelido').value;
         if(!apelido) return alert("Erro: Apelido nulo!");
         
         try {
+            // Faz uma requisição POST (assíncrona) para o Flask informando o apelido
             const resposta = await fetch('/conectar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -96,11 +100,16 @@
             });
             const dados = await resposta.json();
             
+            // Se a conexão de Socket lá no Backend funcionou
             if(dados.status === 'sucesso') {
+                // Esconde a tela de login e mostra o Chat
                 document.getElementById('login-section').style.display = 'none';
                 document.getElementById('chat-section').style.display = 'flex';
+                // Altera o sinal de status do cabeçalho
                 document.getElementById('status-indicator').classList.add('online');
                 document.getElementById('status-text').innerText = "ONLINE";
+                
+                // Inicia o Polling: Executa a função buscarMensagens() a cada 1000ms (1 segundo)
                 intervalBusca = setInterval(buscarMensagens, 1000); 
             } else { 
                 alert("Falha: " + dados.mensagem); 
@@ -113,33 +122,41 @@
     async function enviar() {
         const input = document.getElementById('mensagem');
         const texto = input.value;
-        if(!texto) return;
+        if(!texto) return; // Não deixa enviar caixa vazia
         
+        // Envia o texto via POST para a rota /enviar do Flask
         await fetch('/enviar', { 
             method: 'POST', 
             headers: {'Content-Type': 'application/json'}, 
             body: JSON.stringify({texto: texto}) 
         });
         
-        input.value = ''; 
-        buscarMensagens();
+        input.value = ''; // Limpa a caixa de texto
+        buscarMensagens(); // Força uma atualização imediata na tela
     }
 
     async function buscarMensagens() {
+        // Consulta o Flask pedindo a lista completa de mensagens guardadas na sessão
         const resposta = await fetch('/mensagens');
         const dados = await resposta.json();
         const box = document.getElementById('chat-box');
         const meuApelido = document.getElementById('apelido').value;
         
+        // Só redesenha o chat se o número de mensagens mudar (para não piscar a tela à toa)
         if (box.childElementCount !== dados.mensagens.length) {
+            
+            // Verificação de Som de Notificação
             if(dados.mensagens.length > 0) {
                 let ultima_msg = dados.mensagens[dados.mensagens.length - 1];
+                // Toca som SE não for aviso do sistema E não for mensagem escrita por mim
                 if (!ultima_msg.includes("[SISTEMA]") && !ultima_msg.includes(`[${meuApelido}]:`) && box.childElementCount > 0) {
                      document.getElementById('som-notificacao').play().catch(e => {});
                 }
             }
             
-            box.innerHTML = ''; 
+            box.innerHTML = ''; // Limpa a div principal
+            
+            // Loop para desenhar as caixas de mensagem como no WhatsApp
             dados.mensagens.forEach(msg => {
                 const rowDiv = document.createElement('div');
                 const contentDiv = document.createElement('div');
@@ -149,40 +166,46 @@
                     contentDiv.className = 'msg system';
                     contentDiv.innerText = msg;
                 } else {
-                    // Extrai os dados: [15:30] [Keven]: Olá mundo
+                    // Usa expressão regular (Regex) para fatiar: "[15:30] [Keven]: Olá mundo"
                     const match = msg.match(/^\[(.*?)\] \[(.*?)\]: (.*)$/);
                     if (match) {
                         const hora = match[1];
                         const remetente = match[2];
                         const texto = match[3];
-                        const isMe = (remetente === meuApelido);
                         
+                        // Checa de quem é a mensagem para alinhar Direita (eu) ou Esquerda (outro)
+                        const isMe = (remetente === meuApelido);
                         rowDiv.className = isMe ? 'msg-row me' : 'msg-row other';
                         contentDiv.className = isMe ? 'msg me' : 'msg other';
                         
+                        // Pinta a borda lateral com a cor do usuário
                         const corUsuario = stringToColor(remetente);
                         if (!isMe) contentDiv.style.borderLeftColor = corUsuario;
                         
+                        // Monta o mini-HTML do balãozinho de mensagem
                         contentDiv.innerHTML = `
                             <div class="msg-user" style="color: ${isMe ? '#bb86fc' : corUsuario}">${remetente}</div>
                             <div class="msg-text">${texto}</div>
                             <div class="msg-time">${hora}</div>
                         `;
                     } else {
-                        // Mensagem fora do padrão
+                        // Trata erros: se a mensagem vier num formato esquisito, desenha simples
                         rowDiv.className = 'msg-row other';
                         contentDiv.className = 'msg other';
                         contentDiv.innerText = msg;
                     }
                 }
                 
+                // Insere as divs construídas na tela
                 rowDiv.appendChild(contentDiv);
                 box.appendChild(rowDiv);
             });
+            // Rola a tela até o final (auto-scroll)
             box.scrollTop = box.scrollHeight;
         }
     }
 
+    // Listener para o botão "Enter" do teclado acionar a função de enviar
     document.getElementById("mensagem").addEventListener("keypress", function(event) { 
         if (event.key === "Enter") enviar(); 
     });
