@@ -89,10 +89,21 @@
         }
     }
 
-    async function enviar() {
+   async function enviar() {
         const input = document.getElementById('mensagem');
         const texto = input.value;
         if(!texto) return;
+
+        // Mandamos tudo para o servidor (inclusive o comando /clear)
+        await fetch('/enviar', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({texto: texto}) 
+        });
+        
+        input.value = ''; 
+        buscarMensagens();
+    }
 
         // Comando /clear para limpar o front-end
         if (texto.trim() === '/clear') {
